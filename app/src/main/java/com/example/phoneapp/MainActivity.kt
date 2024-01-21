@@ -110,7 +110,7 @@ fun PreviewFunction() {
 
 @Composable
 fun Conversation(messages: List<Message>) {
-    LazyColumn() {
+    LazyColumn {
         items(messages) { message ->
             Function(message)
         }
