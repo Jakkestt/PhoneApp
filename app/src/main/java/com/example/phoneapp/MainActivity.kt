@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -32,6 +33,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
 import com.example.phoneapp.ui.theme.PhoneAppTheme
 import com.example.phoneapp.SampleData as SampleData
 
@@ -39,9 +44,54 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
+            App()
+        }
+    }
+}
+
+@Composable
+fun App(
+    modifier: Modifier = Modifier,
+    navController: NavHostController = rememberNavController(),
+    startDestination: String = "Chat",
+) {
+    NavHost(
+        modifier = modifier,
+        navController = navController,
+        startDestination = startDestination,
+    ) {
+        composable("Chat") {
             PhoneAppTheme {
-                Conversation(messages = SampleData.conversationSample)
+                MainScreen(
+                    onNavigateToProfile = { navController.navigate("Profile") }
+                )
             }
+        }
+        composable("Profile") {
+            ProfileScreen(onNavigateBack = { navController.popBackStack() })
+        }
+    }
+}
+
+@Composable
+fun MainScreen(
+    onNavigateToProfile: () -> Unit,
+) {
+    Column() {
+        Button(onClick = onNavigateToProfile) {
+            Text(text = "Profile")
+        }
+        Conversation(messages = SampleData.conversationSample)
+    }
+}
+
+@Composable
+fun ProfileScreen(
+    onNavigateBack: () -> Unit,
+) {
+    Column {
+        Button(onClick = onNavigateBack) {
+            Text(text = "Back")
         }
     }
 }
@@ -65,6 +115,7 @@ fun Function(msg: Message) {
         var isExpanded by remember { mutableStateOf(false) }
         val surfaceColor by animateColorAsState(
             if (isExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+            label = "",
         )
 
         Column(modifier = Modifier.clickable { isExpanded = !isExpanded }) {
@@ -80,7 +131,9 @@ fun Function(msg: Message) {
                 shape = MaterialTheme.shapes.medium,
                 shadowElevation = 1.dp,
                 color = surfaceColor,
-                modifier = Modifier.animateContentSize().padding(1.dp)
+                modifier = Modifier
+                    .animateContentSize()
+                    .padding(1.dp)
             ) {
                 Text(
                     text = msg.body,
