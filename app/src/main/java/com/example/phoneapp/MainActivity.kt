@@ -1,8 +1,15 @@
 package com.example.phoneapp
 
+import android.Manifest
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.content.Context
+import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.hardware.Sensor
+import android.hardware.lights.Light
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -30,6 +37,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,7 +48,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.core.net.toUri
+import androidx.core.app.ActivityCompat
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -58,9 +68,12 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Update
 import coil.compose.AsyncImage
-import com.example.phoneapp.SampleData
 import com.example.phoneapp.ui.theme.PhoneAppTheme
+import com.google.accompanist.permissions.ExperimentalPermissionsApi
+import com.google.accompanist.permissions.isGranted
+import com.google.accompanist.permissions.rememberPermissionState
 import java.io.File
+import kotlin.random.Random
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -69,9 +82,13 @@ class MainActivity : ComponentActivity() {
             applicationContext,
             AppDatabase::class.java, "database-name"
         ).allowMainThreadQueries().build()
+        val basicNotification = BasicNotification(this)
 
         setContent {
-            App(database = db)
+            App(
+                database = db,
+                basicNotification = basicNotification
+            )
         }
     }
 }
@@ -103,13 +120,24 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun userDao(): UserDao
 }
 
+@OptIn(ExperimentalPermissionsApi::class)
 @Composable
 fun App(
     modifier: Modifier = Modifier,
     navController: NavHostController = rememberNavController(),
     startDestination: String = "Chat",
     database: AppDatabase,
+    basicNotification: BasicNotification
 ) {
+    val context = LocalContext.current
+    val postNotificationPermission =
+        rememberPermissionState(permission = Manifest.permission.POST_NOTIFICATIONS)
+    LaunchedEffect(key1 = true) {
+        if (!postNotificationPermission.status.isGranted) {
+            postNotificationPermission.launchPermissionRequest()
+        }
+    }
+    val sensorData = SensorDataDisplay(basicNotification = basicNotification)
     val userDao = database.userDao()
     val size: List<User> = userDao.getAll()
     if (size.isEmpty()) {
@@ -122,21 +150,19 @@ fun App(
     }
     val users: List<User> = userDao.getAll()
     var selectedImage by remember {
-        mutableStateOf<Uri>(users[0].selectedImage.toUri())
+        mutableStateOf<Uri>(Uri.parse(users[0].selectedImage))
     }
 
     var profileName by remember {
-        mutableStateOf<String>(users[0].profileName)
+        mutableStateOf(users[0].profileName)
     }
-
-    val context = LocalContext.current
 
     val pickMedia = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
         onResult = { uri ->
             if (uri != null) {
-                val new_uri = saveImageToInternalStorage(context, uri)
-                selectedImage = new_uri
+                val newUri = saveImageToInternalStorage(context, uri)
+                selectedImage = newUri
                 val user = User(
                     uid = users[0].uid,
                     profileName,
@@ -186,6 +212,7 @@ fun App(
                 selectedImage = selectedImage,
                 profileName = profileName,
                 changeName = { changeName(it) },
+                sensorData
             )
         }
     }
@@ -215,7 +242,8 @@ fun ProfileScreen(
     onPickImage: () -> Unit,
     selectedImage: Uri,
     profileName: String,
-    changeName: (String) -> Unit
+    changeName: (String) -> Unit,
+    data: Float,
 ) {
     Column {
         Button(onClick = onNavigateBack) {
@@ -248,6 +276,7 @@ fun ProfileScreen(
             onValueChange = { changeName(it) },
             label = { Text("Profile Name") }
         )
+        Text(text = "Sensor Data: $data")
     }
 }
 
@@ -373,4 +402,51 @@ fun saveImageToInternalStorage(context: Context, uri: Uri): Uri {
     }
     val file = File(context.filesDir, "image.jpg")
     return Uri.fromFile(file)
+}
+
+private fun createNotificationChannel(context: Context) {
+    // Create the NotificationChannel, but only on API 26+ because
+    // the NotificationChannel class is not in the Support Library.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        val name = "Hello"
+        val descriptionText = "Hello"
+        val importance = NotificationManager.IMPORTANCE_DEFAULT
+        val channel = NotificationChannel("1", name, importance).apply {
+            description = descriptionText
+        }
+        // Register the channel with the system.
+        val notificationManager: NotificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.createNotificationChannel(channel)
+    }
+}
+
+private fun sendNotification(context: Context) {
+    // Create the notification
+    val builder = NotificationCompat.Builder(context, "default_channel_id")
+        .setSmallIcon(R.drawable._50px_hl_gonarch_model)
+        .setContentTitle("My Notification")
+        .setContentText("This is a notification triggered from Jetpack Compose")
+        .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+        .build()
+
+    with(NotificationManagerCompat.from(context)) {
+        if (ActivityCompat.checkSelfPermission(
+                context,
+                Manifest.permission.POST_NOTIFICATIONS
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+            // TODO: Consider calling
+            // ActivityCompat#requestPermissions
+            // here to request the missing permissions, and then overriding
+            // public fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>,
+            //                                        grantResults: IntArray)
+            // to handle the case where the user grants the permission. See the documentation
+            // for ActivityCompat#requestPermissions for more details.
+
+            return@with
+        }
+        // notificationId is a unique int for each notification that you must define.
+        notify(Random.nextInt(), builder)
+    }
 }

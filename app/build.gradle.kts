@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.phoneapp"
-        minSdk = 24
+        minSdk = 26
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
@@ -48,6 +48,9 @@ android {
 }
 
 dependencies {
+    implementation("com.google.accompanist:accompanist-permissions:0.31.1-alpha")
+    //implementation("androidx.core:core-ktx:2.2.0")
+
     val room_version = "2.5.0"
 
     implementation("androidx.room:room-runtime:$room_version")
